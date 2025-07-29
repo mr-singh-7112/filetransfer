@@ -1,0 +1,221 @@
+#!/usr/bin/env python3
+import os
+import json
+import socket
+from urllib.parse import unquote
+from http.server import HTTPServer, BaseHTTPRequestHandler
+from socketserver import ThreadingMixIn
+import cgi
+import shutil
+
+class ThreadedHTTPServer(ThreadingMixIn, HTTPServer):
+    """Handle requests in a separate thread."""
+    pass
+
+class FileTransferHandler(BaseHTTPRequestHandler):
+    def __init__(self, *args, **kwargs):
+        self.upload_dir = "uploads"
+        if not os.path.exists(self.upload_dir):
+            os.makedirs(self.upload_dir)
+        super().__init__(*args, **kwargs)
+    
+    def log_message(self, format, *args):
+        """Override to reduce console spam"""
+        return
+    
+    def do_GET(self):
+        if self.path == '/' or self.path == '/index.html':
+            self.serve_file('index.html', 'text/html')
+        elif self.path == '/files':
+            self.list_files()
+        elif self.path.startswith('/download/'):
+            filename = unquote(self.path[10:])  # Remove '/download/'
+            self.download_file(filename)
+        else:
+            self.send_error(404)
+    
+    def do_POST(self):
+        if self.path == '/upload':
+            self.upload_file()
+        else:
+            self.send_error(404)
+    
+    def serve_file(self, filename, content_type):
+        try:
+            with open(filename, 'rb') as f:
+                content = f.read()
+            
+            self.send_response(200)
+            self.send_header('Content-Type', content_type)
+            self.send_header('Content-Length', str(len(content)))
+            self.end_headers()
+            self.wfile.write(content)
+        except FileNotFoundError:
+            self.send_error(404)
+    
+    def upload_file(self):
+        try:
+            # Parse the multipart form data
+            content_type = self.headers.get('Content-Type')
+            if not content_type or not content_type.startswith('multipart/form-data'):
+                self.send_error(400, "Bad Request: Expected multipart/form-data")
+                return
+            
+            # Get content length
+            content_length = int(self.headers.get('Content-Length', 0))
+            if content_length == 0:
+                self.send_error(400, "Bad Request: No content")
+                return
+            
+            # Parse form data
+            form = cgi.FieldStorage(
+                fp=self.rfile,
+                headers=self.headers,
+                environ={
+                    'REQUEST_METHOD': 'POST',
+                    'CONTENT_TYPE': self.headers.get('Content-Type'),
+                }
+            )
+            
+            if 'file' not in form:
+                self.send_error(400, "Bad Request: No file field")
+                return
+            
+            file_item = form['file']
+            if not file_item.filename:
+                self.send_error(400, "Bad Request: No file selected")
+                return
+            
+            # Save the file
+            filename = file_item.filename
+            # Sanitize filename
+            filename = "".join(c for c in filename if c.isalnum() or c in (' ', '.', '_', '-')).rstrip()
+            
+            filepath = os.path.join(self.upload_dir, filename)
+            
+            # Handle duplicate filenames
+            counter = 1
+            original_filepath = filepath
+            while os.path.exists(filepath):
+                name, ext = os.path.splitext(original_filepath)
+                filepath = f"{name}_{counter}{ext}"
+                counter += 1
+            
+            # Write file in chunks to handle large files
+            with open(filepath, 'wb') as f:
+                shutil.copyfileobj(file_item.file, f)
+            
+            print(f"✅ File uploaded: {os.path.basename(filepath)} ({self.get_file_size(filepath)})")
+            
+            self.send_response(200)
+            self.send_header('Content-Type', 'application/json')
+            self.end_headers()
+            response = json.dumps({"status": "success", "filename": os.path.basename(filepath)})
+            self.wfile.write(response.encode())
+            
+        except Exception as e:
+            print(f"❌ Upload error: {str(e)}")
+            self.send_error(500, f"Internal Server Error: {str(e)}")
+    
+    def list_files(self):
+        try:
+            files = []
+            for filename in os.listdir(self.upload_dir):
+                filepath = os.path.join(self.upload_dir, filename)
+                if os.path.isfile(filepath):
+                    files.append({
+                        'name': filename,
+                        'size': os.path.getsize(filepath)
+                    })
+            
+            files.sort(key=lambda x: x['name'])
+            
+            self.send_response(200)
+            self.send_header('Content-Type', 'application/json')
+            self.send_header('Access-Control-Allow-Origin', '*')
+            self.end_headers()
+            
+            response = json.dumps(files)
+            self.wfile.write(response.encode())
+            
+        except Exception as e:
+            print(f"❌ List files error: {str(e)}")
+            self.send_error(500)
+    
+    def download_file(self, filename):
+        try:
+            filepath = os.path.join(self.upload_dir, filename)
+            if not os.path.exists(filepath) or not os.path.isfile(filepath):
+                self.send_error(404, "File not found")
+                return
+            
+            file_size = os.path.getsize(filepath)
+            
+            self.send_response(200)
+            self.send_header('Content-Type', 'application/octet-stream')
+            self.send_header('Content-Disposition', f'attachment; filename="{filename}"')
+            self.send_header('Content-Length', str(file_size))
+            self.end_headers()
+            
+            # Send file in chunks for large files
+            with open(filepath, 'rb') as f:
+                while True:
+                    chunk = f.read(8192)  # 8KB chunks
+                    if not chunk:
+                        break
+                    self.wfile.write(chunk)
+            
+            print(f"📥 File downloaded: {filename}")
+            
+        except Exception as e:
+            print(f"❌ Download error: {str(e)}")
+            self.send_error(500)
+    
+    def get_file_size(self, filepath):
+        size_bytes = os.path.getsize(filepath)
+        if size_bytes == 0:
+            return "0 B"
+        size_names = ["B", "KB", "MB", "GB"]
+        i = 0
+        while size_bytes >= 1024 and i < len(size_names) - 1:
+            size_bytes /= 1024.0
+            i += 1
+        return f"{size_bytes:.1f} {size_names[i]}"
+
+def get_local_ip():
+    """Get the local IP address"""
+    try:
+        # Connect to a remote address (doesn't actually connect)
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(("8.8.8.8", 80))
+        ip = s.getsockname()[0]
+        s.close()
+        return ip
+    except Exception:
+        return "127.0.0.1"
+
+def main():
+    port = 8081
+    local_ip = get_local_ip()
+    
+    print("🚀 Quick File Transfer Server Starting...")
+    print("=" * 50)
+    print(f"📱 Access from your phone: http://{local_ip}:{port}")
+    print(f"💻 Access from this computer: http://localhost:{port}")
+    print("=" * 50)
+    print("📁 Files will be saved in the 'uploads' folder")
+    print("🔄 Server supports up to 5GB file transfers")
+    print("⚡ Fast local network transfer - no internet needed!")
+    print("=" * 50)
+    print("Press Ctrl+C to stop the server")
+    print("")
+    
+    try:
+        server = ThreadedHTTPServer(('0.0.0.0', port), FileTransferHandler)
+        server.serve_forever()
+    except KeyboardInterrupt:
+        print("\n\n🛑 Server stopped. Thanks for using Quick Transfer!")
+        server.shutdown()
+
+if __name__ == '__main__':
+    main()
