@@ -1145,7 +1145,12 @@
             subtitle.after(platformIcons);
         }
         
-        console.log('📱 B-Transfer by Balsim Productions loaded successfully!');
+        console.log('📱 B-Transfer by Balsim Productions v2.1 loaded successfully!');
+        
+        // Force immediate file list load to show existing files
+        setTimeout(() => {
+            loadFileList();
+        }, 1000);
     </script>
 </body>
 </html>
