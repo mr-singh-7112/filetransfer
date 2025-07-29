@@ -1,0 +1,25 @@
+{
+  "name": "Quick File Transfer",
+  "description": "Super simple file transfer from phone to computer - no WhatsApp Web login needed!",
+  "repository": "https://github.com/mr-singh-7112/filetransfer",
+  "logo": "https://cdn-icons-png.flaticon.com/512/1995/1995470.png",
+  "keywords": ["python", "file-transfer", "mobile", "upload", "heroku"],
+  "image": "heroku/python",
+  "env": {
+    "PORT": {
+      "description": "Port number for the server",
+      "value": "8080"
+    }
+  },
+  "formation": {
+    "web": {
+      "quantity": 1,
+      "size": "hobby"
+    }
+  },
+  "buildpacks": [
+    {
+      "url": "heroku/python"
+    }
+  ]
+}

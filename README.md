@@ -1,6 +1,25 @@
 # 📱➡️💻 Quick File Transfer
 
-A super simple local file transfer solution to send files from your phone to your computer without needing WhatsApp Web login!
+[![Deploy](https://www.herokucdn.com/deploy/button.svg)](https://heroku.com/deploy)
+
+A **super simple and fast** file transfer solution to send files from your phone to your computer without needing WhatsApp Web login or any other complex setup!
+
+🌟 **Perfect for**: Avoiding WhatsApp Web login, transferring large files (up to 5GB), quick photo/video sharing, document transfers
+
+## 🚀 Live Demo
+
+**Try it now**: [https://your-app-name.herokuapp.com](https://your-app-name.herokuapp.com) _(Will be updated after deployment)_
+
+## ✨ Features
+
+- 📱 **Mobile-First Design**: Beautiful, responsive interface optimized for phones
+- ⚡ **Lightning Fast**: Direct network transfer with real-time progress
+- 🚀 **Large File Support**: Handle files up to 5GB
+- 🔒 **No Login Required**: No accounts, no WhatsApp Web, just upload and go!
+- 📊 **Progress Tracking**: See upload progress in real-time
+- 📁 **Instant Access**: Files immediately available on your computer
+- 🎨 **Beautiful UI**: Clean, modern design with drag & drop support
+- 🌐 **Cross-Platform**: Works on any device with a web browser
 
 ## 🚀 How to Use
 

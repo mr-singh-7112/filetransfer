@@ -195,7 +195,7 @@ def get_local_ip():
         return "127.0.0.1"
 
 def main():
-    port = 8081
+    port = int(os.environ.get('PORT', 8081))  # Use Heroku's port or default to 8081
     local_ip = get_local_ip()
     
     print("🚀 Quick File Transfer Server Starting...")
