@@ -1,6 +1,6 @@
 # 📱➡️💻 Quick File Transfer
 
-[![Deploy](https://www.herokucdn.com/deploy/button.svg)](https://heroku.com/deploy)
+[![Deploy](https://www.herokucdn.com/deploy/button.svg)](https://heroku.com/deploy?template=https://github.com/mr-singh-7112/filetransfer)
 
 A **super simple and fast** file transfer solution to send files from your phone to your computer without needing WhatsApp Web login or any other complex setup!
 
