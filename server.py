@@ -2,15 +2,48 @@
 import os
 import json
 import socket
-from urllib.parse import unquote
+import time
+import threading
+import uuid
+import hashlib
+from datetime import datetime, timedelta
+from urllib.parse import unquote, parse_qs
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from socketserver import ThreadingMixIn
 import cgi
 import shutil
+import mimetypes
 
 class ThreadedHTTPServer(ThreadingMixIn, HTTPServer):
     """Handle requests in a separate thread."""
     pass
+
+def add_file_expiry(filepath, hours=24):
+    expiry_time = datetime.now() + timedelta(hours=hours)
+    os.utime(filepath, (expiry_time.timestamp(), expiry_time.timestamp()))
+
+class FileCleaner(threading.Thread):
+    def run(self):
+        while True:
+            try:
+                now = time.time()
+                if os.path.exists('uploads'):
+                    for filename in os.listdir('uploads'):
+                        filepath = os.path.join('uploads', filename)
+                        if os.path.isfile(filepath):
+                            # Check if file is older than 24 hours
+                            file_age = now - os.path.getctime(filepath)
+                            if file_age > 86400:  # 24 hours in seconds
+                                os.remove(filepath)
+                                print(f"🗑️ Auto-deleted (24h): {filename}")
+            except Exception as e:
+                print(f"⚠️ Cleaner error: {e}")
+            time.sleep(3600)  # Check every hour
+
+# Start cleaner thread
+cleaner = FileCleaner()
+cleaner.daemon = True
+cleaner.start()
 
 class FileTransferHandler(BaseHTTPRequestHandler):
     def __init__(self, *args, **kwargs):
@@ -31,12 +64,22 @@ class FileTransferHandler(BaseHTTPRequestHandler):
         elif self.path.startswith('/download/'):
             filename = unquote(self.path[10:])  # Remove '/download/'
             self.download_file(filename)
+        elif self.path.startswith('/preview/'):
+            filename = unquote(self.path[9:])  # Remove '/preview/'
+            self.preview_file(filename)
         else:
             self.send_error(404)
     
     def do_POST(self):
         if self.path == '/upload':
             self.upload_file()
+        else:
+            self.send_error(404)
+    
+    def do_DELETE(self):
+        if self.path.startswith('/delete/'):
+            filename = unquote(self.path[8:])  # Remove '/delete/'
+            self.delete_file(filename)
         else:
             self.send_error(404)
     
@@ -170,6 +213,26 @@ class FileTransferHandler(BaseHTTPRequestHandler):
         except Exception as e:
             print(f"❌ Download error: {str(e)}")
             self.send_error(500)
+    
+    def delete_file(self, filename):
+        try:
+            filepath = os.path.join(self.upload_dir, filename)
+            if not os.path.exists(filepath) or not os.path.isfile(filepath):
+                self.send_error(404, "File not found")
+                return
+            
+            os.remove(filepath)
+            print(f"🗑️ File manually deleted: {filename}")
+            
+            self.send_response(200)
+            self.send_header('Content-Type', 'application/json')
+            self.end_headers()
+            response = json.dumps({"status": "success", "message": "File deleted successfully"})
+            self.wfile.write(response.encode())
+            
+        except Exception as e:
+            print(f"❌ Delete error: {str(e)}")
+            self.send_error(500, f"Internal Server Error: {str(e)}")
     
     def get_file_size(self, filepath):
         size_bytes = os.path.getsize(filepath)
