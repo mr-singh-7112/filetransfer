@@ -589,14 +589,14 @@
             <div style="font-size: 0.4em; color: #888; font-weight: 400; margin-top: 5px;">by Balsim Productions</div>
         </h1>
         
-        <div class="install-banner" id="installBanner" style="display: none;">
+        <div class="install-banner" id="installBanner">
             <div class="install-content">
                 <span class="install-icon">📱</span>
                 <div class="install-text">
-                    <strong>Install B-Transfer</strong>
-                    <small>Works offline • Native app experience</small>
+                    <strong>Install B-Transfer as Native App</strong>
+                    <small>📱 Works offline • ⚡ Faster access • 🔐 Secure</small>
                 </div>
-                <button class="install-btn" id="installButton">Install</button>
+                <button class="install-btn" id="installButton">Install Now</button>
                 <button class="install-close" id="closeBanner">×</button>
             </div>
         </div>
@@ -1045,7 +1045,19 @@
             e.preventDefault();
             deferredPrompt = e;
             installBanner.style.display = 'block';
+            console.log('📱 PWA install prompt ready!');
         });
+        
+        // Show install banner immediately for better UX
+        setTimeout(() => {
+            const isStandalone = window.matchMedia('(display-mode: standalone)').matches;
+            const isIOSStandalone = window.navigator.standalone === true;
+            
+            if (!isStandalone && !isIOSStandalone && !localStorage.getItem('installBannerClosed')) {
+                installBanner.style.display = 'block';
+                console.log('📱 Showing install banner');
+            }
+        }, 3000);
         
         // Handle install button click
         installButton.addEventListener('click', async () => {
