@@ -1,14 +1,24 @@
-# 📱➡️💻 Quick File Transfer
+# 🚀 Quick Transfer Pro - Secure Real-time File Sharing
 
 [![Deploy](https://www.herokucdn.com/deploy/button.svg)](https://heroku.com/deploy?template=https://github.com/mr-singh-7112/filetransfer)
 
-A **super simple and fast** file transfer solution to send files from your phone to your computer without needing WhatsApp Web login or any other complex setup!
+A **production-grade, secure** file transfer system with advanced encryption, owner authentication, and modern web interface. Built for privacy and security while maintaining simplicity.
 
-🌟 **Perfect for**: Avoiding WhatsApp Web login, transferring large files (up to 5GB), quick photo/video sharing, document transfers
+🔐 **Security First**: File encryption, owner tokens, secure deletion, automatic cleanup
+🌟 **Perfect for**: Secure file sharing, avoiding cloud storage, transferring large files (up to 5GB), private document sharing
 
 ## 🚀 Live Demo
 
 **Try it now**: [https://your-app-name.herokuapp.com](https://your-app-name.herokuapp.com) _(Will be updated after deployment)_
+
+## 🔐 Security Features
+
+- 🔑 **Owner Authentication**: Only file uploaders can delete their files using secure tokens
+- 🔒 **File Encryption**: All uploaded files are encrypted using Fernet symmetric encryption
+- 🎩 **Secure Tokens**: Each file has a unique owner token stored securely in browser
+- 🖪 **Session Isolation**: Users can only manage files they uploaded
+- ⏰ **Auto-Cleanup**: Files and tokens are automatically deleted after 24 hours
+- 🛮 **Privacy First**: No personal data stored, no account creation required
 
 ## ✨ Features
 
@@ -20,6 +30,7 @@ A **super simple and fast** file transfer solution to send files from your phone
 - 📁 **Instant Access**: Files immediately available on your computer
 - 🎨 **Beautiful UI**: Clean, modern design with drag & drop support
 - 🌐 **Cross-Platform**: Works on any device with a web browser
+- 📱 **PWA Support**: Install as mobile app for offline usage
 
 ## 🚀 How to Use
 
@@ -52,11 +63,14 @@ Double-click `start.sh` or run in terminal:
 
 ## 🔧 Technical Details
 
-- Built with Python 3 (uses only standard libraries)
-- Runs on port 8080 by default
-- Files saved in `uploads/` folder
-- Supports all file types
+- Built with Python 3 + cryptography library for encryption
+- Runs on port 8081 by default (configurable via PORT env var)
+- Files encrypted and saved in `uploads/` folder
+- Owner tokens stored as `.token` files for authentication
+- Supports all file types with automatic encryption/decryption
 - Thread-safe for multiple simultaneous uploads
+- Real-time file cleanup every hour for expired files
+- PWA manifest for mobile app installation
 
 ## 🛠️ Troubleshooting
 

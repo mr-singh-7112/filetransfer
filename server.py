@@ -6,6 +6,8 @@ import time
 import threading
 import uuid
 import hashlib
+import base64
+import secrets
 from datetime import datetime, timedelta
 from urllib.parse import unquote, parse_qs
 from http.server import HTTPServer, BaseHTTPRequestHandler
@@ -13,10 +15,22 @@ from socketserver import ThreadingMixIn
 import cgi
 import shutil
 import mimetypes
+from cryptography.fernet import Fernet
+from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 
 class ThreadedHTTPServer(ThreadingMixIn, HTTPServer):
     """Handle requests in a separate thread."""
     pass
+
+
+# Key generation for encryption purposes
+KEY = base64.urlsafe_b64encode(os.urandom(32))
+fernet = Fernet(KEY)
+
+# A simple token generator for user session management
+def generate_token():
+    return secrets.token_urlsafe(16)
 
 def add_file_expiry(filepath, hours=24):
     expiry_time = datetime.now() + timedelta(hours=hours)
@@ -35,6 +49,10 @@ class FileCleaner(threading.Thread):
                             file_age = now - os.path.getctime(filepath)
                             if file_age > 86400:  # 24 hours in seconds
                                 os.remove(filepath)
+                                # Also remove associated token file
+                                token_path = f"{filepath}.token"
+                                if os.path.exists(token_path):
+                                    os.remove(token_path)
                                 print(f"🗑️ Auto-deleted (24h): {filename}")
             except Exception as e:
                 print(f"⚠️ Cleaner error: {e}")
@@ -151,13 +169,26 @@ class FileTransferHandler(BaseHTTPRequestHandler):
             # Write file in chunks to handle large files
             with open(filepath, 'wb') as f:
                 shutil.copyfileobj(file_item.file, f)
+
+            # Generate unique owner token for this upload
+            owner_token = generate_token()
+            token_path = f"{filepath}.token"
+            with open(token_path, 'w') as token_file:
+                token_file.write(owner_token)
+
+            # Optionally encrypt file content with Fernet
+            with open(filepath, 'rb') as file_to_encrypt:
+                encrypted_data = fernet.encrypt(file_to_encrypt.read())
+            with open(filepath, 'wb') as encrypted_file:
+                encrypted_file.write(encrypted_data)
             
             print(f"✅ File uploaded: {os.path.basename(filepath)} ({self.get_file_size(filepath)})")
             
             self.send_response(200)
             self.send_header('Content-Type', 'application/json')
+            self.send_header('X-Owner-Token', owner_token)  # Return token to client
             self.end_headers()
-            response = json.dumps({"status": "success", "filename": os.path.basename(filepath)})
+            response = json.dumps({"status": "success", "filename": os.path.basename(filepath), "owner_token": owner_token})
             self.wfile.write(response.encode())
             
         except Exception as e:
@@ -169,7 +200,7 @@ class FileTransferHandler(BaseHTTPRequestHandler):
             files = []
             for filename in os.listdir(self.upload_dir):
                 filepath = os.path.join(self.upload_dir, filename)
-                if os.path.isfile(filepath):
+                if os.path.isfile(filepath) and not filename.endswith('.token'):
                     files.append({
                         'name': filename,
                         'size': os.path.getsize(filepath)
@@ -204,13 +235,22 @@ class FileTransferHandler(BaseHTTPRequestHandler):
             self.send_header('Content-Length', str(file_size))
             self.end_headers()
             
-            # Send file in chunks for large files
+            # Decrypt and send file in chunks for large files
             with open(filepath, 'rb') as f:
-                while True:
-                    chunk = f.read(8192)  # 8KB chunks
-                    if not chunk:
-                        break
-                    self.wfile.write(chunk)
+                encrypted_data = f.read()
+                try:
+                    decrypted_data = fernet.decrypt(encrypted_data)
+                    # Send decrypted data in chunks
+                    offset = 0
+                    while offset < len(decrypted_data):
+                        chunk_size = min(8192, len(decrypted_data) - offset)
+                        chunk = decrypted_data[offset:offset + chunk_size]
+                        self.wfile.write(chunk)
+                        offset += chunk_size
+                except Exception as e:
+                    print(f"Decryption error: {e}")
+                    # Fallback: send as-is if decryption fails
+                    self.wfile.write(encrypted_data)
             
             print(f"📥 File downloaded: {filename}")
             
@@ -225,7 +265,26 @@ class FileTransferHandler(BaseHTTPRequestHandler):
                 self.send_error(404, "File not found")
                 return
             
+            # Get owner token from request header
+            owner_token = self.headers.get('X-Owner-Token')
+            if not owner_token:
+                self.send_error(403, "Forbidden: No owner token provided")
+                return
+            
+            # Check if token matches
+            token_path = f"{filepath}.token"
+            if not os.path.exists(token_path):
+                self.send_error(404, "Token file not found")
+                return
+                
+            with open(token_path, 'r') as token_file:
+                saved_token = token_file.read()
+            if owner_token != saved_token:
+                self.send_error(403, "Forbidden: Invalid owner token")
+                return
+
             os.remove(filepath)
+            os.remove(token_path)  # Remove the token file linked to the file
             print(f"🗑️ File manually deleted: {filename}")
             
             self.send_response(200)

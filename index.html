@@ -560,6 +560,7 @@
         let currentTheme = 'light';
         let uploadCounter = parseInt(localStorage.getItem('uploadsToday') || '0');
         let lastUploadDate = localStorage.getItem('lastUploadDate');
+        let fileTokens = JSON.parse(localStorage.getItem('fileTokens') || '{}');
 
         // Reset counter if it's a new day
         const today = new Date().toDateString();
@@ -639,6 +640,12 @@
             xhr.addEventListener('load', () => {
                 progressContainer.style.display = 'none';
                 if (xhr.status === 200) {
+                    // Capture owner token from response header
+                    const ownerToken = xhr.getResponseHeader('X-Owner-Token');
+                    if (ownerToken) {
+                        fileTokens[file.name] = ownerToken;
+                        localStorage.setItem('fileTokens', JSON.stringify(fileTokens));
+                    }
                     showStatus('✅ File uploaded successfully! Auto-deletes in 24h', 'success');
                     loadFileList();
                     updateUploadCounter();
@@ -657,16 +664,28 @@
         }
         
         function deleteFile(filename) {
+            const token = fileTokens[filename];
+            if (!token) {
+                showStatus('You can only delete files you uploaded!', 'error');
+                return;
+            }
+            
             if (!confirm(`Are you sure you want to delete "${filename}"?`)) {
                 return;
             }
             
             fetch(`/delete/${encodeURIComponent(filename)}`, {
-                method: 'DELETE'
+                method: 'DELETE',
+                headers: {
+                    'X-Owner-Token': token
+                }
             })
             .then(response => response.json())
             .then(data => {
                 if (data.status === 'success') {
+                    // Remove token from storage
+                    delete fileTokens[filename];
+                    localStorage.setItem('fileTokens', JSON.stringify(fileTokens));
                     showStatus('🗑️ File deleted successfully!', 'success');
                     loadFileList();
                 } else {
@@ -726,10 +745,12 @@
                         
                         const uploadTime = new Date().toLocaleDateString();
                         
+                        const canDelete = fileTokens[file.name] ? true : false;
                         fileItem.innerHTML = `
                             <div class="file-info">
                                 <div class="file-name">
                                     ${getFileIcon(file.name)} ${file.name}
+                                    ${canDelete ? ' <span style="color: var(--success); font-size: 0.8em;">(Your file)</span>' : ''}
                                 </div>
                                 <div class="file-meta">
                                     <span class="file-size">
@@ -745,10 +766,7 @@
                                    class="btn btn-primary" download>
                                     💾 Download
                                 </a>
-                                <button onclick="deleteFile('${file.name}')" 
-                                        class="btn btn-danger">
-                                    🗑️ Delete
-                                </button>
+                                ${canDelete ? `<button onclick="deleteFile('${file.name}')" class="btn btn-danger">🗑️ Delete</button>` : ''}
                             </div>
                         `;
                         

@@ -1,2 +1,2 @@
-# No external dependencies required
-# This project uses only Python standard libraries
+# Dependencies for secure file handling
+cryptography==41.0.3
