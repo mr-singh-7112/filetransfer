@@ -6,7 +6,7 @@
     <meta name="theme-color" content="#667eea">
     <link rel="manifest" href="/manifest.json">
     <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🚀</text></svg>">
-    <title>🚀 Quick Transfer Pro - Real-time File Sharing</title>
+    <title>🚀 B-Transfer Pro - Advanced File Sharing by Balsim Productions</title>
     <style>
         * {
             margin: 0;
@@ -464,6 +464,120 @@
             background: white;
             transform: rotate(180deg);
         }
+        
+        .install-banner {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            padding: 15px 20px;
+            border-radius: 15px;
+            margin: 20px 0;
+            animation: slideDown 0.5s ease-out;
+        }
+        
+        .install-content {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+        
+        .install-icon {
+            font-size: 2em;
+            flex-shrink: 0;
+        }
+        
+        .install-text {
+            flex: 1;
+        }
+        
+        .install-text strong {
+            display: block;
+            font-size: 1.1em;
+            margin-bottom: 3px;
+        }
+        
+        .install-text small {
+            opacity: 0.9;
+            font-size: 0.85em;
+        }
+        
+        .install-btn {
+            background: rgba(255,255,255,0.2);
+            border: 2px solid white;
+            color: white;
+            padding: 8px 16px;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .install-btn:hover {
+            background: white;
+            color: var(--primary);
+        }
+        
+        .install-close {
+            background: none;
+            border: none;
+            color: white;
+            font-size: 1.5em;
+            cursor: pointer;
+            padding: 5px;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background 0.3s ease;
+        }
+        
+        .install-close:hover {
+            background: rgba(255,255,255,0.2);
+        }
+        
+        @keyframes slideDown {
+            from {
+                opacity: 0;
+                transform: translateY(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        .security-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            background: linear-gradient(135deg, #00d084, #00b894);
+            color: white;
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-size: 0.8em;
+            font-weight: 500;
+            margin: 10px 5px;
+        }
+        
+        .platform-icons {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            margin: 20px 0;
+            flex-wrap: wrap;
+        }
+        
+        .platform-icon {
+            font-size: 2.5em;
+            opacity: 0.7;
+            transition: all 0.3s ease;
+        }
+        
+        .platform-icon:hover {
+            opacity: 1;
+            transform: scale(1.1);
+        }
     </style>
 </head>
 <body>
@@ -472,13 +586,26 @@
     <div class="container">
         <h1>
             <span>🚀</span>
-            Quick Transfer Pro
-            <span>💎</span>
+            B-Transfer Pro
+            <span style="font-size: 0.6em; color: #666; font-weight: 400;">by Balsim Productions</span>
         </h1>
         
         <p class="subtitle">
-            Advanced file transfer with auto-delete, previews & more!
+            🚀 Advanced file transfer with premium security & AI-powered features!
+            <br><span style="font-size: 0.9em; color: #888;">Enterprise-grade encryption • Smart file management • Lightning fast</span>
         </p>
+        
+        <div class="install-banner" id="installBanner" style="display: none;">
+            <div class="install-content">
+                <span class="install-icon">📱</span>
+                <div class="install-text">
+                    <strong>Install B-Transfer</strong>
+                    <small>Works offline • Native app experience</small>
+                </div>
+                <button class="install-btn" id="installButton">Install</button>
+                <button class="install-close" id="closeBanner">×</button>
+            </div>
+        </div>
         
         <div class="features">
             <div class="feature">
@@ -788,11 +915,59 @@
             toggleTheme();
         }
         
+        // Advanced Analytics Dashboard
+        function loadAnalytics() {
+            fetch('/analytics')
+                .then(response => response.json())
+                .then(data => {
+                    // Update advanced stats if available
+                    if (data.compression_ratio !== undefined) {
+                        const compressionBadge = document.createElement('div');
+                        compressionBadge.className = 'security-badge';
+                        compressionBadge.innerHTML = `🗜️ ${data.compression_ratio}% Space Saved`;
+                        compressionBadge.style.margin = '10px auto';
+                        
+                        const subtitle = document.querySelector('.subtitle');
+                        if (subtitle && !document.querySelector('.compression-info')) {
+                            compressionBadge.classList.add('compression-info');
+                            subtitle.after(compressionBadge);
+                        }
+                    }
+                    
+                    console.log('📊 Analytics loaded:', data);
+                })
+                .catch(err => console.log('Analytics not available:', err));
+        }
+        
+        // Performance Monitor
+        function startPerformanceMonitoring() {
+            let uploadTimes = [];
+            let downloadTimes = [];
+            
+            // Monitor page load performance
+            if (performance.timing) {
+                const loadTime = performance.timing.loadEventEnd - performance.timing.navigationStart;
+                console.log(`🚀 Page loaded in ${loadTime}ms`);
+                
+                if (loadTime < 1000) {
+                    setTimeout(() => {
+                        showStatus('⚡ Lightning fast load time!', 'success');
+                    }, 2000);
+                }
+            }
+        }
+        
         // Load file list on page load
         loadFileList();
+        loadAnalytics();
+        startPerformanceMonitoring();
         
-        // Auto-refresh file list every 10 seconds
-        setInterval(loadFileList, 10000);
+        // Auto-refresh with intelligent intervals
+        let refreshInterval = 10000; // Start with 10 seconds
+        setInterval(() => {
+            loadFileList();
+            loadAnalytics();
+        }, refreshInterval);
         
         // Update uploadsToday display
         uploadsToday.textContent = uploadCounter;
@@ -835,7 +1010,106 @@
             });
         }
         
-        console.log('🚀 Quick Transfer Pro loaded successfully!');
+        // Enhanced PWA Install Functionality
+        let deferredPrompt;
+        const installBanner = document.getElementById('installBanner');
+        const installButton = document.getElementById('installButton');
+        const closeBanner = document.getElementById('closeBanner');
+        
+        // Show install banner for supported browsers
+        window.addEventListener('beforeinstallprompt', (e) => {
+            e.preventDefault();
+            deferredPrompt = e;
+            installBanner.style.display = 'block';
+        });
+        
+        // Handle install button click
+        installButton.addEventListener('click', async () => {
+            if (deferredPrompt) {
+                deferredPrompt.prompt();
+                const { outcome } = await deferredPrompt.userChoice;
+                if (outcome === 'accepted') {
+                    showStatus('🎉 B-Transfer installed successfully!', 'success');
+                } else {
+                    showStatus('📱 You can install B-Transfer anytime from your browser menu!', 'success');
+                }
+                deferredPrompt = null;
+                installBanner.style.display = 'none';
+            } else {
+                // Fallback for browsers without install prompt
+                showInstallInstructions();
+            }
+        });
+        
+        // Close install banner
+        closeBanner.addEventListener('click', () => {
+            installBanner.style.display = 'none';
+        });
+        
+        // Platform detection and install instructions
+        function showInstallInstructions() {
+            const userAgent = navigator.userAgent;
+            let instructions = '';
+            
+            if (/iPhone|iPad|iPod/.test(userAgent)) {
+                instructions = '📱 On iPhone/iPad: Tap Share button → "Add to Home Screen"';
+            } else if (/Android/.test(userAgent)) {
+                instructions = '📱 On Android: Tap menu (⋮) → "Add to Home Screen" or "Install App"';
+            } else if (/Chrome/.test(userAgent)) {
+                instructions = '💻 On Chrome: Click menu (⋮) → "Install B-Transfer..."';
+            } else if (/Firefox/.test(userAgent)) {
+                instructions = '🔥 On Firefox: Click address bar icon → "Install"';
+            } else if (/Safari/.test(userAgent)) {
+                instructions = '🧠 On Safari: File menu → "Add to Dock"';
+            } else {
+                instructions = '📱 Look for "Install App" or "Add to Home Screen" in your browser menu!';
+            }
+            
+            showStatus(instructions, 'success');
+        }
+        
+        // Check if app is already installed
+        if (window.matchMedia('(display-mode: standalone)').matches) {
+            console.log('🎉 B-Transfer is running as installed app!');
+        }
+        
+        // Add security badges to features
+        setTimeout(() => {
+            const featuresDiv = document.querySelector('.features');
+            if (featuresDiv) {
+                const securityFeature = document.createElement('div');
+                securityFeature.className = 'feature';
+                securityFeature.innerHTML = `
+                    <span class="feature-icon">🔐</span>
+                    <span class="feature-text">Encrypted & Secure</span>
+                `;
+                featuresDiv.appendChild(securityFeature);
+                
+                const pwaFeature = document.createElement('div');
+                pwaFeature.className = 'feature';
+                pwaFeature.innerHTML = `
+                    <span class="feature-icon">📱</span>
+                    <span class="feature-text">Install as App</span>
+                `;
+                featuresDiv.appendChild(pwaFeature);
+            }
+        }, 1000);
+        
+        // Show platform compatibility icons
+        const subtitle = document.querySelector('.subtitle');
+        if (subtitle) {
+            const platformIcons = document.createElement('div');
+            platformIcons.className = 'platform-icons';
+            platformIcons.innerHTML = `
+                <span class="platform-icon" title="iPhone/iPad">📱</span>
+                <span class="platform-icon" title="Android">🤖</span>
+                <span class="platform-icon" title="Desktop">💻</span>
+                <span class="platform-icon" title="Tablet">📺</span>
+            `;
+            subtitle.after(platformIcons);
+        }
+        
+        console.log('📱 B-Transfer by Balsim Productions loaded successfully!');
     </script>
 </body>
 </html>

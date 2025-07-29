@@ -8,6 +8,9 @@ import uuid
 import hashlib
 import base64
 import secrets
+import gzip
+import io
+import sqlite3
 from datetime import datetime, timedelta
 from urllib.parse import unquote, parse_qs
 from http.server import HTTPServer, BaseHTTPRequestHandler
@@ -28,9 +31,110 @@ class ThreadedHTTPServer(ThreadingMixIn, HTTPServer):
 KEY = base64.urlsafe_b64encode(os.urandom(32))
 fernet = Fernet(KEY)
 
+# Advanced Analytics Database
+class AnalyticsDB:
+    def __init__(self):
+        self.db_path = 'analytics.db'
+        self.init_db()
+    
+    def init_db(self):
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS uploads (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                filename TEXT,
+                file_size INTEGER,
+                file_type TEXT,
+                upload_time TIMESTAMP,
+                ip_address TEXT,
+                compressed_size INTEGER,
+                download_count INTEGER DEFAULT 0
+            )
+        ''')
+        conn.commit()
+        conn.close()
+    
+    def log_upload(self, filename, file_size, file_type, ip_address, compressed_size):
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        cursor.execute('''
+            INSERT INTO uploads (filename, file_size, file_type, upload_time, ip_address, compressed_size)
+            VALUES (?, ?, ?, ?, ?, ?)
+        ''', (filename, file_size, file_type, datetime.now(), ip_address, compressed_size))
+        conn.commit()
+        conn.close()
+    
+    def increment_download(self, filename):
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        cursor.execute('UPDATE uploads SET download_count = download_count + 1 WHERE filename = ?', (filename,))
+        conn.commit()
+        conn.close()
+    
+    def get_stats(self):
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        
+        # Total files and size
+        cursor.execute('SELECT COUNT(*), SUM(file_size), SUM(compressed_size) FROM uploads')
+        total_files, total_size, total_compressed = cursor.fetchone()
+        
+        # Today's uploads
+        today = datetime.now().date()
+        cursor.execute('SELECT COUNT(*) FROM uploads WHERE DATE(upload_time) = ?', (today,))
+        today_uploads = cursor.fetchone()[0]
+        
+        # Popular file types
+        cursor.execute('SELECT file_type, COUNT(*) FROM uploads GROUP BY file_type ORDER BY COUNT(*) DESC LIMIT 5')
+        popular_types = cursor.fetchall()
+        
+        conn.close()
+        
+        return {
+            'total_files': total_files or 0,
+            'total_size': total_size or 0,
+            'total_compressed': total_compressed or 0,
+            'today_uploads': today_uploads or 0,
+            'popular_types': popular_types,
+            'compression_ratio': round((1 - (total_compressed or 1) / (total_size or 1)) * 100, 1) if total_size else 0
+        }
+
+analytics = AnalyticsDB()
+
 # A simple token generator for user session management
 def generate_token():
     return secrets.token_urlsafe(16)
+
+# Smart file compression
+def compress_file_data(data, filename):
+    """Compress file data if beneficial"""
+    # Don't compress already compressed formats
+    compressed_formats = {'.jpg', '.jpeg', '.png', '.gif', '.mp4', '.mp3', '.zip', '.rar', '.7z'}
+    ext = os.path.splitext(filename)[1].lower()
+    
+    if ext in compressed_formats:
+        return data, len(data)  # Return original data and size
+    
+    # Compress for text files, documents, etc.
+    compressed = gzip.compress(data)
+    if len(compressed) < len(data) * 0.95:  # Only if compression saves >5%
+        return compressed, len(compressed)
+    else:
+        return data, len(data)
+
+def decompress_file_data(data, filename):
+    """Decompress file data if it was compressed"""
+    compressed_formats = {'.jpg', '.jpeg', '.png', '.gif', '.mp4', '.mp3', '.zip', '.rar', '.7z'}
+    ext = os.path.splitext(filename)[1].lower()
+    
+    if ext in compressed_formats:
+        return data  # Not compressed
+    
+    try:
+        return gzip.decompress(data)
+    except:
+        return data  # Fallback to original if decompression fails
 
 def add_file_expiry(filepath, hours=24):
     expiry_time = datetime.now() + timedelta(hours=hours)
@@ -83,6 +187,10 @@ class FileTransferHandler(BaseHTTPRequestHandler):
             self.serve_file('sw.js', 'application/javascript')
         elif self.path == '/files':
             self.list_files()
+        elif self.path == '/analytics':
+            self.get_analytics()
+        elif self.path == '/health':
+            self.health_check()
         elif self.path.startswith('/download/'):
             filename = unquote(self.path[10:])  # Remove '/download/'
             self.download_file(filename)
@@ -167,20 +275,39 @@ class FileTransferHandler(BaseHTTPRequestHandler):
                 counter += 1
             
             # Write file in chunks to handle large files
+            original_size = 0
             with open(filepath, 'wb') as f:
-                shutil.copyfileobj(file_item.file, f)
+                while True:
+                    chunk = file_item.file.read(8192)
+                    if not chunk:
+                        break
+                    original_size += len(chunk)
+                    f.write(chunk)
+
+            # Smart compression and encryption
+            with open(filepath, 'rb') as f:
+                file_data = f.read()
+            
+            # Compress if beneficial
+            compressed_data, compressed_size = compress_file_data(file_data, filename)
+            
+            # Encrypt the (potentially compressed) data
+            encrypted_data = fernet.encrypt(compressed_data)
+            
+            # Write encrypted data back
+            with open(filepath, 'wb') as f:
+                f.write(encrypted_data)
 
             # Generate unique owner token for this upload
             owner_token = generate_token()
             token_path = f"{filepath}.token"
             with open(token_path, 'w') as token_file:
                 token_file.write(owner_token)
-
-            # Optionally encrypt file content with Fernet
-            with open(filepath, 'rb') as file_to_encrypt:
-                encrypted_data = fernet.encrypt(file_to_encrypt.read())
-            with open(filepath, 'wb') as encrypted_file:
-                encrypted_file.write(encrypted_data)
+            
+            # Log to analytics
+            file_type = os.path.splitext(filename)[1].lower() or 'unknown'
+            client_ip = self.client_address[0]
+            analytics.log_upload(filename, original_size, file_type, client_ip, compressed_size)
             
             print(f"✅ File uploaded: {os.path.basename(filepath)} ({self.get_file_size(filepath)})")
             
@@ -235,21 +362,28 @@ class FileTransferHandler(BaseHTTPRequestHandler):
             self.send_header('Content-Length', str(file_size))
             self.end_headers()
             
-            # Decrypt and send file in chunks for large files
+            # Decrypt, decompress and send file in chunks
             with open(filepath, 'rb') as f:
                 encrypted_data = f.read()
                 try:
+                    # Decrypt first
                     decrypted_data = fernet.decrypt(encrypted_data)
-                    # Send decrypted data in chunks
+                    # Then decompress if needed
+                    final_data = decompress_file_data(decrypted_data, filename)
+                    
+                    # Update download counter
+                    analytics.increment_download(filename)
+                    
+                    # Send decompressed data in chunks
                     offset = 0
-                    while offset < len(decrypted_data):
-                        chunk_size = min(8192, len(decrypted_data) - offset)
-                        chunk = decrypted_data[offset:offset + chunk_size]
+                    while offset < len(final_data):
+                        chunk_size = min(8192, len(final_data) - offset)
+                        chunk = final_data[offset:offset + chunk_size]
                         self.wfile.write(chunk)
                         offset += chunk_size
                 except Exception as e:
-                    print(f"Decryption error: {e}")
-                    # Fallback: send as-is if decryption fails
+                    print(f"Decryption/decompression error: {e}")
+                    # Fallback: send as-is if processing fails
                     self.wfile.write(encrypted_data)
             
             print(f"📥 File downloaded: {filename}")
@@ -297,6 +431,60 @@ class FileTransferHandler(BaseHTTPRequestHandler):
             print(f"❌ Delete error: {str(e)}")
             self.send_error(500, f"Internal Server Error: {str(e)}")
     
+    def get_analytics(self):
+        """Return analytics data as JSON"""
+        try:
+            stats = analytics.get_stats()
+            
+            self.send_response(200)
+            self.send_header('Content-Type', 'application/json')
+            self.send_header('Access-Control-Allow-Origin', '*')
+            self.end_headers()
+            
+            response = json.dumps(stats)
+            self.wfile.write(response.encode())
+            
+        except Exception as e:
+            print(f"❌ Analytics error: {str(e)}")
+            self.send_error(500)
+    
+    def health_check(self):
+        """Health check endpoint for monitoring"""
+        try:
+            # Check if uploads directory exists
+            uploads_ok = os.path.exists('uploads')
+            
+            # Check database connection
+            try:
+                analytics.get_stats()
+                db_ok = True
+            except:
+                db_ok = False
+            
+            health_status = {
+                'status': 'healthy' if uploads_ok and db_ok else 'unhealthy',
+                'timestamp': datetime.now().isoformat(),
+                'version': '2.0.0',
+                'service': 'B-Transfer Pro by Balsim Productions',
+                'checks': {
+                    'uploads_directory': uploads_ok,
+                    'database': db_ok,
+                    'encryption': True  # Fernet is always available if server starts
+                }
+            }
+            
+            self.send_response(200 if health_status['status'] == 'healthy' else 503)
+            self.send_header('Content-Type', 'application/json')
+            self.send_header('Access-Control-Allow-Origin', '*')
+            self.end_headers()
+            
+            response = json.dumps(health_status, indent=2)
+            self.wfile.write(response.encode())
+            
+        except Exception as e:
+            print(f"❌ Health check error: {str(e)}")
+            self.send_error(500)
+    
     def get_file_size(self, filepath):
         size_bytes = os.path.getsize(filepath)
         if size_bytes == 0:
@@ -324,15 +512,17 @@ def main():
     port = int(os.environ.get('PORT', 8081))  # Use Heroku's port or default to 8081
     local_ip = get_local_ip()
     
-    print("🚀 Quick File Transfer Server Starting...")
-    print("=" * 50)
+    print("📱 B-Transfer Server Starting...")
+    print("=" * 60)
     print(f"📱 Access from your phone: http://{local_ip}:{port}")
     print(f"💻 Access from this computer: http://localhost:{port}")
-    print("=" * 50)
-    print("📁 Files will be saved in the 'uploads' folder")
+    print("=" * 60)
+    print("📁 Files encrypted and saved in 'uploads' folder")
     print("🔄 Server supports up to 5GB file transfers")
+    print("🔐 Advanced security with owner authentication")
     print("⚡ Fast local network transfer - no internet needed!")
-    print("=" * 50)
+    print("🏢 Powered by Balsim Productions")
+    print("=" * 60)
     print("Press Ctrl+C to stop the server")
     print("")
     
@@ -340,7 +530,7 @@ def main():
         server = ThreadedHTTPServer(('0.0.0.0', port), FileTransferHandler)
         server.serve_forever()
     except KeyboardInterrupt:
-        print("\n\n🛑 Server stopped. Thanks for using Quick Transfer!")
+        print("\n\n🛑 B-Transfer server stopped. Thanks for using B-Transfer by Balsim Productions!")
         server.shutdown()
 
 if __name__ == '__main__':

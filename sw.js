@@ -1,4 +1,4 @@
-const CACHE_NAME = 'quick-transfer-v1';
+const CACHE_NAME = 'b-transfer-pro-v2';
 const urlsToCache = [
   '/',
   '/index.html',
@@ -135,7 +135,7 @@ self.addEventListener('push', (event) => {
   };
 
   event.waitUntil(
-    self.registration.showNotification('Quick Transfer Pro', options)
+    self.registration.showNotification('B-Transfer Pro', options)
   );
 });
 
@@ -159,4 +159,4 @@ self.addEventListener('notificationclick', (event) => {
   }
 });
 
-console.log('🚀 Service Worker loaded successfully!');
+console.log('🚀 B-Transfer Pro Service Worker loaded successfully!');
