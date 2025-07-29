@@ -585,15 +585,9 @@
     
     <div class="container">
         <h1>
-            <span>🚀</span>
             B-Transfer Pro
-            <span style="font-size: 0.6em; color: #666; font-weight: 400;">by Balsim Productions</span>
+            <div style="font-size: 0.4em; color: #888; font-weight: 400; margin-top: 5px;">by Balsim Productions</div>
         </h1>
-        
-        <p class="subtitle">
-            🚀 Advanced file transfer with premium security & AI-powered features!
-            <br><span style="font-size: 0.9em; color: #888;">Enterprise-grade encryption • Smart file management • Lightning fast</span>
-        </p>
         
         <div class="install-banner" id="installBanner" style="display: none;">
             <div class="install-content">
@@ -607,25 +601,6 @@
             </div>
         </div>
         
-        <div class="features">
-            <div class="feature">
-                <span class="feature-icon">⏰</span>
-                <span class="feature-text">Auto-Delete 24h</span>
-            </div>
-            <div class="feature">
-                <span class="feature-icon">👁️</span>
-                <span class="feature-text">File Preview</span>
-            </div>
-            <div class="feature">
-                <span class="feature-icon">🗑️</span>
-                <span class="feature-text">Manual Delete</span>
-            </div>
-            <div class="feature">
-                <span class="feature-icon">📊</span>
-                <span class="feature-text">Real-time Stats</span>
-            </div>
-        </div>
-        
         <div class="upload-area" id="uploadArea">
             <div class="upload-text">Drop files here or click to select</div>
             <div class="upload-subtext">Up to 5GB per file • All types supported • Auto-delete in 24h</div>
@@ -633,9 +608,6 @@
         
         <input type="file" id="fileInput" multiple>
         
-        <div class="auto-delete-info">
-            <strong>🔄 Auto-Delete:</strong> Files are automatically deleted after 24 hours to keep your storage clean!
-        </div>
         
         <div class="progress-container" id="progressContainer">
             <div class="progress-bar">
@@ -646,20 +618,6 @@
         
         <div class="status" id="status"></div>
         
-        <div class="stats" id="stats">
-            <div class="stat">
-                <span class="stat-number" id="totalFiles">0</span>
-                <span class="stat-label">Files</span>
-            </div>
-            <div class="stat">
-                <span class="stat-number" id="totalSize">0 MB</span>
-                <span class="stat-label">Total Size</span>
-            </div>
-            <div class="stat">
-                <span class="stat-number" id="uploadsToday">0</span>
-                <span class="stat-label">Today</span>
-            </div>
-        </div>
         
         <div class="file-list" id="fileListContainer" style="display: none;">
             <div class="file-list-header">
@@ -774,7 +732,10 @@
                         localStorage.setItem('fileTokens', JSON.stringify(fileTokens));
                     }
                     showStatus('✅ File uploaded successfully! Auto-deletes in 24h', 'success');
-                    loadFileList();
+                    // Force immediate refresh
+                    setTimeout(() => {
+                        loadFileList();
+                    }, 500);
                     updateUploadCounter();
                 } else {
                     showStatus('❌ Upload failed. Please try again.', 'error');
@@ -835,12 +796,12 @@
         }
         
         function updateStats(files) {
-            totalFiles.textContent = files.length;
+            if (totalFiles) totalFiles.textContent = files.length;
             
             const totalBytes = files.reduce((sum, file) => sum + file.size, 0);
-            totalSize.textContent = formatFileSize(totalBytes);
+            if (totalSize) totalSize.textContent = formatFileSize(totalBytes);
             
-            uploadsToday.textContent = uploadCounter;
+            if (uploadsToday) uploadsToday.textContent = uploadCounter;
         }
         
         function updateUploadCounter() {
@@ -851,40 +812,67 @@
         }
         
         function loadFileList() {
+            console.log('🔄 Loading file list...');
             fetch('/files')
-                .then(response => response.json())
+                .then(response => {
+                    console.log('📡 Response status:', response.status);
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                    }
+                    return response.json();
+                })
                 .then(files => {
+                    console.log('📁 Files received:', files);
+                    
+                    // Ensure files is an array
+                    if (!Array.isArray(files)) {
+                        console.error('❌ Files response is not an array:', files);
+                        throw new Error('Invalid files response');
+                    }
+                    
                     updateStats(files);
                     
-                    if (files.length === 0) {
+                    // Filter files to only show valid files (no system files)
+                    const validFiles = files.filter(file => 
+                        file.name && 
+                        file.name !== '.gitkeep' && 
+                        !file.name.endsWith('.token') &&
+                        !file.name.startsWith('.') &&
+                        file.name.trim() !== ''
+                    );
+                    
+                    console.log('✅ Valid files:', validFiles);
+                    
+                    if (validFiles.length === 0) {
                         fileListContainer.style.display = 'none';
+                        showStatus('📂 No files uploaded yet. Drop files above to get started!', 'success');
                         return;
                     }
                     
                     fileListContainer.style.display = 'block';
-                    fileCount.textContent = `${files.length} file${files.length !== 1 ? 's' : ''}`;
+                    fileCount.textContent = `${validFiles.length} file${validFiles.length !== 1 ? 's' : ''}`;
                     
                     fileList.innerHTML = '';
                     
-                    files.forEach(file => {
+                    validFiles.forEach(file => {
                         const fileItem = document.createElement('div');
                         fileItem.className = 'file-item';
                         
-                        const uploadTime = new Date().toLocaleDateString();
-                        
+                        // Only show delete button if user owns the file (has token)
                         const canDelete = fileTokens[file.name] ? true : false;
+                        
                         fileItem.innerHTML = `
                             <div class="file-info">
                                 <div class="file-name">
                                     ${getFileIcon(file.name)} ${file.name}
-                                    ${canDelete ? ' <span style="color: var(--success); font-size: 0.8em;">(Your file)</span>' : ''}
+                                    ${canDelete ? ' <span style="color: var(--success); font-size: 0.8em; font-weight: 600;">🔐 Your file</span>' : ' <span style="color: #888; font-size: 0.8em;">👤 Shared file</span>'}
                                 </div>
                                 <div class="file-meta">
                                     <span class="file-size">
                                         📊 ${formatFileSize(file.size)}
                                     </span>
                                     <span class="file-time">
-                                        ⏰ Today
+                                        ⏰ Available for 24h
                                     </span>
                                 </div>
                             </div>
@@ -893,14 +881,27 @@
                                    class="btn btn-primary" download>
                                     💾 Download
                                 </a>
-                                ${canDelete ? `<button onclick="deleteFile('${file.name}')" class="btn btn-danger">🗑️ Delete</button>` : ''}
+                                ${canDelete ? `<button onclick="deleteFile('${file.name}')" class="btn btn-danger">🗑️ Delete</button>` : '<span style="color: #888; font-size: 0.8em; padding: 10px;">🔒 Protected</span>'}
                             </div>
                         `;
                         
                         fileList.appendChild(fileItem);
                     });
+                    
+                    console.log('✅ File list updated successfully');
                 })
-                .catch(err => console.error('Error loading files:', err));
+                .catch(err => {
+                    console.error('❌ Error loading files:', err);
+                    showStatus(`❌ Could not load files: ${err.message}`, 'error');
+                    
+                    // Try to show what's wrong
+                    fetch('/files')
+                        .then(response => response.text())
+                        .then(text => {
+                            console.log('🔍 Raw response:', text.substring(0, 200));
+                        })
+                        .catch(e => console.log('🔍 Could not get raw response:', e));
+                });
         }
         
         function toggleTheme() {
@@ -962,12 +963,35 @@
         loadAnalytics();
         startPerformanceMonitoring();
         
-        // Auto-refresh with intelligent intervals
-        let refreshInterval = 10000; // Start with 10 seconds
-        setInterval(() => {
-            loadFileList();
-            loadAnalytics();
-        }, refreshInterval);
+        // Real-time updates with faster refresh
+        let refreshInterval = 2000; // Fast refresh every 2 seconds
+        let refreshTimer;
+        
+        function startRealTimeUpdates() {
+            refreshTimer = setInterval(() => {
+                console.log('🔄 Auto-refreshing...');
+                loadFileList();
+                loadAnalytics();
+            }, refreshInterval);
+        }
+        
+        function stopRealTimeUpdates() {
+            if (refreshTimer) {
+                clearInterval(refreshTimer);
+            }
+        }
+        
+        // Start real-time updates
+        startRealTimeUpdates();
+        
+        // Refresh immediately when tab becomes visible
+        document.addEventListener('visibilitychange', () => {
+            if (!document.hidden) {
+                console.log('🔄 Tab visible - refreshing...');
+                loadFileList();
+                loadAnalytics();
+            }
+        });
         
         // Update uploadsToday display
         uploadsToday.textContent = uploadCounter;
