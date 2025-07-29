@@ -1,4 +1,4 @@
-const CACHE_NAME = 'b-transfer-pro-v2';
+const CACHE_NAME = 'b-transfer-pro-v3.1';
 const urlsToCache = [
   '/',
   '/index.html',

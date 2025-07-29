@@ -411,28 +411,131 @@
         }
         
         @media (max-width: 768px) {
+            body {
+                padding: 10px;
+            }
+            
             .container {
-                padding: 25px;
-                margin: 10px;
+                padding: 20px;
+                margin: 5px;
+                border-radius: 15px;
+                max-width: 100%;
             }
             
             h1 {
-                font-size: 2em;
+                font-size: 1.8em;
+                margin-bottom: 20px;
+            }
+            
+            .upload-area {
+                padding: 30px 15px;
+                margin: 20px 0;
+            }
+            
+            .upload-text {
+                font-size: 1.1em;
+            }
+            
+            .upload-subtext {
+                font-size: 0.85em;
+            }
+            
+            .install-banner {
+                margin: 15px 0;
+                padding: 12px 15px;
+            }
+            
+            .install-content {
+                flex-wrap: wrap;
+                gap: 10px;
+            }
+            
+            .install-text {
+                min-width: 200px;
+            }
+            
+            .install-btn {
+                padding: 10px 20px;
+                font-size: 0.9em;
             }
             
             .features {
                 grid-template-columns: repeat(2, 1fr);
+                gap: 10px;
+                margin: 20px 0;
+            }
+            
+            .feature {
+                padding: 15px 10px;
             }
             
             .file-item {
                 flex-direction: column;
                 align-items: flex-start;
-                gap: 15px;
+                gap: 12px;
+                padding: 15px;
             }
             
             .file-actions {
                 width: 100%;
                 justify-content: space-between;
+                gap: 8px;
+            }
+            
+            .btn {
+                flex: 1;
+                justify-content: center;
+                font-size: 0.85em;
+                padding: 12px 8px;
+            }
+            
+            .file-list-header {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 10px;
+            }
+            
+            .file-count {
+                align-self: flex-end;
+            }
+            
+            .theme-toggle {
+                top: 15px;
+                right: 15px;
+                width: 40px;
+                height: 40px;
+                font-size: 1.2em;
+            }
+        }
+        
+        @media (max-width: 480px) {
+            .container {
+                padding: 15px;
+                margin: 0;
+                border-radius: 10px;
+                min-height: calc(100vh - 20px);
+            }
+            
+            h1 {
+                font-size: 1.6em;
+            }
+            
+            .upload-area {
+                padding: 25px 10px;
+            }
+            
+            .install-content {
+                flex-direction: column;
+                text-align: center;
+            }
+            
+            .install-btn {
+                width: 100%;
+                margin-top: 10px;
+            }
+            
+            .features {
+                grid-template-columns: 1fr;
             }
         }
         
@@ -1059,8 +1162,12 @@
             if (!isStandalone && !isIOSStandalone && !localStorage.getItem('installBannerClosed')) {
                 installBanner.style.display = 'block';
                 console.log('📱 Showing install banner');
+            } else if (isStandalone || isIOSStandalone) {
+                // Hide install banner if already installed
+                installBanner.style.display = 'none';
+                console.log('📱 App is already installed - hiding banner');
             }
-        }, 3000);
+        }, 1000);
         
         // Handle install button click
         installButton.addEventListener('click', async () => {
@@ -1083,6 +1190,7 @@
         // Close install banner
         closeBanner.addEventListener('click', () => {
             installBanner.style.display = 'none';
+            localStorage.setItem('installBannerClosed', 'true');
         });
         
         // Platform detection and install instructions
