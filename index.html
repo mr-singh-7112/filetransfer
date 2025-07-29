@@ -6,7 +6,7 @@
     <meta name="theme-color" content="#667eea">
     <link rel="manifest" href="/manifest.json">
     <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🚀</text></svg>">
-    <title>🚀 B-Transfer Pro - Advanced File Sharing by Balsim Productions</title>
+    <title>B-Transfer Pro - Advanced File Sharing by Balsim Productions</title>
     <style>
         * {
             margin: 0;
@@ -1109,40 +1109,20 @@
             console.log('🎉 B-Transfer is running as installed app!');
         }
         
-        // Add security badges to features
-        setTimeout(() => {
-            const featuresDiv = document.querySelector('.features');
-            if (featuresDiv) {
-                const securityFeature = document.createElement('div');
-                securityFeature.className = 'feature';
-                securityFeature.innerHTML = `
-                    <span class="feature-icon">🔐</span>
-                    <span class="feature-text">Encrypted & Secure</span>
-                `;
-                featuresDiv.appendChild(securityFeature);
-                
-                const pwaFeature = document.createElement('div');
-                pwaFeature.className = 'feature';
-                pwaFeature.innerHTML = `
-                    <span class="feature-icon">📱</span>
-                    <span class="feature-text">Install as App</span>
-                `;
-                featuresDiv.appendChild(pwaFeature);
-            }
-        }, 1000);
+        // Remove any old feature elements that might exist
+        const oldFeatures = document.querySelector('.features');
+        if (oldFeatures) {
+            oldFeatures.remove();
+        }
         
-        // Show platform compatibility icons
-        const subtitle = document.querySelector('.subtitle');
-        if (subtitle) {
-            const platformIcons = document.createElement('div');
-            platformIcons.className = 'platform-icons';
-            platformIcons.innerHTML = `
-                <span class="platform-icon" title="iPhone/iPad">📱</span>
-                <span class="platform-icon" title="Android">🤖</span>
-                <span class="platform-icon" title="Desktop">💻</span>
-                <span class="platform-icon" title="Tablet">📺</span>
-            `;
-            subtitle.after(platformIcons);
+        // Clean up any old UI elements
+        const oldSubtitle = document.querySelector('.subtitle');
+        if (oldSubtitle) {
+            oldSubtitle.remove();
+        }
+        const oldPlatformIcons = document.querySelector('.platform-icons');
+        if (oldPlatformIcons) {
+            oldPlatformIcons.remove();
         }
         
         console.log('📱 B-Transfer by Balsim Productions v2.1 loaded successfully!');
