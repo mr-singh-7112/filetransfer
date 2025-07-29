@@ -3,7 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>🚀 Quick Transfer Pro</title>
+    <meta name="theme-color" content="#667eea">
+    <link rel="manifest" href="/manifest.json">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🚀</text></svg>">
+    <title>🚀 Quick Transfer Pro - Real-time File Sharing</title>
     <style>
         * {
             margin: 0;
@@ -775,6 +778,44 @@
         
         // Update uploadsToday display
         uploadsToday.textContent = uploadCounter;
+        
+        // Register service worker for PWA functionality
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/sw.js')
+                    .then((registration) => {
+                        console.log('🛠️ Service Worker registered:', registration.scope);
+                        
+                        // Show install prompt
+                        window.addEventListener('beforeinstallprompt', (e) => {
+                            e.preventDefault();
+                            const installBtn = document.createElement('button');
+                            installBtn.textContent = '📱 Install App';
+                            installBtn.className = 'btn btn-outline';
+                            installBtn.style.position = 'fixed';
+                            installBtn.style.bottom = '20px';
+                            installBtn.style.right = '20px';
+                            installBtn.style.zIndex = '1000';
+                            
+                            installBtn.addEventListener('click', () => {
+                                e.prompt();
+                                e.userChoice.then((choiceResult) => {
+                                    if (choiceResult.outcome === 'accepted') {
+                                        console.log('📱 User installed the app');
+                                        showStatus('🎉 App installed successfully!', 'success');
+                                    }
+                                    installBtn.remove();
+                                });
+                            });
+                            
+                            document.body.appendChild(installBtn);
+                        });
+                    })
+                    .catch((error) => {
+                        console.log('❌ Service Worker registration failed:', error);
+                    });
+            });
+        }
         
         console.log('🚀 Quick Transfer Pro loaded successfully!');
     </script>

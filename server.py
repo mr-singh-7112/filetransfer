@@ -59,6 +59,10 @@ class FileTransferHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         if self.path == '/' or self.path == '/index.html':
             self.serve_file('index.html', 'text/html')
+        elif self.path == '/manifest.json':
+            self.serve_file('manifest.json', 'application/json')
+        elif self.path == '/sw.js':
+            self.serve_file('sw.js', 'application/javascript')
         elif self.path == '/files':
             self.list_files()
         elif self.path.startswith('/download/'):
