@@ -1109,30 +1109,6 @@
                     .then((registration) => {
                         console.log('🛠️ Service Worker registered:', registration.scope);
                         
-                        // Show install prompt
-                        window.addEventListener('beforeinstallprompt', (e) => {
-                            e.preventDefault();
-                            const installBtn = document.createElement('button');
-                            installBtn.textContent = '📱 Install App';
-                            installBtn.className = 'btn btn-outline';
-                            installBtn.style.position = 'fixed';
-                            installBtn.style.bottom = '20px';
-                            installBtn.style.right = '20px';
-                            installBtn.style.zIndex = '1000';
-                            
-                            installBtn.addEventListener('click', () => {
-                                e.prompt();
-                                e.userChoice.then((choiceResult) => {
-                                    if (choiceResult.outcome === 'accepted') {
-                                        console.log('📱 User installed the app');
-                                        showStatus('🎉 App installed successfully!', 'success');
-                                    }
-                                    installBtn.remove();
-                                });
-                            });
-                            
-                            document.body.appendChild(installBtn);
-                        });
                     })
                     .catch((error) => {
                         console.log('❌ Service Worker registration failed:', error);
@@ -1146,52 +1122,90 @@
         const installButton = document.getElementById('installButton');
         const closeBanner = document.getElementById('closeBanner');
         
-        // Show install banner for supported browsers
-        window.addEventListener('beforeinstallprompt', (e) => {
-            e.preventDefault();
-            deferredPrompt = e;
-            installBanner.style.display = 'block';
-            console.log('📱 PWA install prompt ready!');
-        });
-        
-        // Show install banner immediately for better UX
-        setTimeout(() => {
+        // Initialize install functionality
+        function initializePWA() {
+            // Check if app is already installed
             const isStandalone = window.matchMedia('(display-mode: standalone)').matches;
             const isIOSStandalone = window.navigator.standalone === true;
+            const isInstalled = isStandalone || isIOSStandalone;
             
-            if (!isStandalone && !isIOSStandalone && !localStorage.getItem('installBannerClosed')) {
-                installBanner.style.display = 'block';
-                console.log('📱 Showing install banner');
-            } else if (isStandalone || isIOSStandalone) {
-                // Hide install banner if already installed
+            console.log('📱 PWA Status:', {
+                isStandalone,
+                isIOSStandalone,
+                isInstalled,
+                bannerClosed: localStorage.getItem('installBannerClosed')
+            });
+            
+            if (isInstalled) {
                 installBanner.style.display = 'none';
                 console.log('📱 App is already installed - hiding banner');
+                return;
             }
-        }, 1000);
+            
+            // Show banner if not closed before
+            if (!localStorage.getItem('installBannerClosed')) {
+                installBanner.style.display = 'block';
+                console.log('📱 Showing install banner');
+            }
+        }
+        
+        // Listen for install prompt
+        window.addEventListener('beforeinstallprompt', (e) => {
+            console.log('📱 beforeinstallprompt fired');
+            e.preventDefault();
+            deferredPrompt = e;
+            
+            // Show banner if not already shown
+            if (!localStorage.getItem('installBannerClosed')) {
+                installBanner.style.display = 'block';
+                console.log('📱 Install prompt available - showing banner');
+            }
+        });
         
         // Handle install button click
-        installButton.addEventListener('click', async () => {
-            if (deferredPrompt) {
-                deferredPrompt.prompt();
-                const { outcome } = await deferredPrompt.userChoice;
-                if (outcome === 'accepted') {
-                    showStatus('🎉 B-Transfer installed successfully!', 'success');
+        if (installButton) {
+            installButton.addEventListener('click', async () => {
+                console.log('📱 Install button clicked');
+                
+                if (deferredPrompt) {
+                    console.log('📱 Using deferred prompt');
+                    try {
+                        await deferredPrompt.prompt();
+                        const { outcome } = await deferredPrompt.userChoice;
+                        
+                        console.log('📱 User choice:', outcome);
+                        
+                        if (outcome === 'accepted') {
+                            showStatus('🎉 B-Transfer installed successfully! Look for the app icon on your device.', 'success');
+                            localStorage.setItem('appInstalled', 'true');
+                        } else {
+                            showStatus('📱 You can install B-Transfer anytime from your browser menu!', 'success');
+                        }
+                    } catch (error) {
+                        console.error('📱 Install error:', error);
+                        showInstallInstructions();
+                    }
+                    
+                    deferredPrompt = null;
+                    installBanner.style.display = 'none';
                 } else {
-                    showStatus('📱 You can install B-Transfer anytime from your browser menu!', 'success');
+                    console.log('📱 No deferred prompt - showing instructions');
+                    showInstallInstructions();
                 }
-                deferredPrompt = null;
-                installBanner.style.display = 'none';
-            } else {
-                // Fallback for browsers without install prompt
-                showInstallInstructions();
-            }
-        });
+            });
+        }
         
         // Close install banner
-        closeBanner.addEventListener('click', () => {
-            installBanner.style.display = 'none';
-            localStorage.setItem('installBannerClosed', 'true');
-        });
+        if (closeBanner) {
+            closeBanner.addEventListener('click', () => {
+                console.log('📱 Closing install banner');
+                installBanner.style.display = 'none';
+                localStorage.setItem('installBannerClosed', 'true');
+            });
+        }
+        
+        // Initialize PWA after page load
+        setTimeout(initializePWA, 500);
         
         // Platform detection and install instructions
         function showInstallInstructions() {
