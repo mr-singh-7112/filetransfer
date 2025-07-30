@@ -11,6 +11,7 @@ import secrets
 import gzip
 import io
 import sqlite3
+import struct
 from datetime import datetime, timedelta
 from urllib.parse import unquote, parse_qs
 from http.server import HTTPServer, BaseHTTPRequestHandler
@@ -262,7 +263,7 @@ class FileTransferHandler(BaseHTTPRequestHandler):
             # Save the file
             filename = file_item.filename
             # Sanitize filename
-            filename = "".join(c for c in filename if c.isalnum() or c in (' ', '.', '_', '-')).rstrip()
+            filename = os.path.basename(filename)
             
             filepath = os.path.join(self.upload_dir, filename)
             
@@ -290,9 +291,21 @@ class FileTransferHandler(BaseHTTPRequestHandler):
             
             # Compress if beneficial
             compressed_data, compressed_size = compress_file_data(file_data, filename)
+            was_compressed = len(compressed_data) < len(file_data)
             
-            # Encrypt the (potentially compressed) data
-            encrypted_data = fernet.encrypt(compressed_data)
+            # Create metadata with compression info
+            metadata = {
+                'compressed': was_compressed,
+                'original_size': len(file_data),
+                'filename': filename
+            }
+            metadata_json = json.dumps(metadata).encode()
+            
+            # Combine metadata and data
+            combined_data = len(metadata_json).to_bytes(4, 'big') + metadata_json + compressed_data
+            
+            # Encrypt the combined data
+            encrypted_data = fernet.encrypt(combined_data)
             
             # Write encrypted data back
             with open(filepath, 'wb') as f:
@@ -327,13 +340,35 @@ class FileTransferHandler(BaseHTTPRequestHandler):
             files = []
             for filename in os.listdir(self.upload_dir):
                 filepath = os.path.join(self.upload_dir, filename)
-                if os.path.isfile(filepath) and not filename.endswith('.token'):
+                # Skip system files, hidden files, and token files
+                if (os.path.isfile(filepath) and 
+                    not filename.endswith('.token') and 
+                    not filename.startswith('.') and 
+                    filename not in ['.gitkeep', '.DS_Store', 'Thumbs.db']):
+                    
+                    # Read metadata to get original size
+                    original_size = os.path.getsize(filepath) # Fallback to current size
+                    try:
+                        with open(filepath, 'rb') as f:
+                            encrypted_data = f.read()
+                            decrypted_data = fernet.decrypt(encrypted_data)
+                            
+                            # Extract metadata size
+                            metadata_len = int.from_bytes(decrypted_data[:4], 'big')
+                            # Extract metadata JSON
+                            metadata_json = decrypted_data[4:4+metadata_len]
+                            metadata = json.loads(metadata_json.decode())
+                            original_size = metadata.get('original_size', original_size)
+
+                    except Exception as e:
+                        print(f"Could not read metadata for {filename}: {e}")
+
                     files.append({
                         'name': filename,
-                        'size': os.path.getsize(filepath)
+                        'size': original_size
                     })
             
-            files.sort(key=lambda x: x['name'])
+            files.sort(key=lambda f: os.path.getmtime(os.path.join(self.upload_dir, f['name'])), reverse=True)
             
             self.send_response(200)
             self.send_header('Content-Type', 'application/json')
@@ -354,25 +389,42 @@ class FileTransferHandler(BaseHTTPRequestHandler):
                 self.send_error(404, "File not found")
                 return
             
-            file_size = os.path.getsize(filepath)
-            
-            self.send_response(200)
-            self.send_header('Content-Type', 'application/octet-stream')
-            self.send_header('Content-Disposition', f'attachment; filename="{filename}"')
-            self.send_header('Content-Length', str(file_size))
-            self.end_headers()
-            
-            # Decrypt, decompress and send file in chunks
+            # First decrypt and extract data with metadata
             with open(filepath, 'rb') as f:
                 encrypted_data = f.read()
                 try:
                     # Decrypt first
                     decrypted_data = fernet.decrypt(encrypted_data)
-                    # Then decompress if needed
-                    final_data = decompress_file_data(decrypted_data, filename)
+                    
+                    # Check if this is new format with metadata
+                    try:
+                        # Extract metadata length (first 4 bytes)
+                        metadata_len = int.from_bytes(decrypted_data[:4], 'big')
+                        # Extract metadata JSON
+                        metadata_json = decrypted_data[4:4+metadata_len]
+                        metadata = json.loads(metadata_json.decode())
+                        # Extract file data
+                        file_data = decrypted_data[4+metadata_len:]
+                        
+                        # Decompress only if it was compressed
+                        if metadata.get('compressed', False):
+                            final_data = gzip.decompress(file_data)
+                        else:
+                            final_data = file_data
+                            
+                    except (json.JSONDecodeError, ValueError, struct.error):
+                        # Fallback to old format
+                        final_data = decompress_file_data(decrypted_data, filename)
                     
                     # Update download counter
                     analytics.increment_download(filename)
+                    
+                    # Send correct headers with actual file size
+                    self.send_response(200)
+                    self.send_header('Content-Type', 'application/octet-stream')
+                    self.send_header('Content-Disposition', f'attachment; filename="{filename}"')
+                    self.send_header('Content-Length', str(len(final_data)))
+                    self.end_headers()
                     
                     # Send decompressed data in chunks
                     offset = 0
@@ -381,15 +433,87 @@ class FileTransferHandler(BaseHTTPRequestHandler):
                         chunk = final_data[offset:offset + chunk_size]
                         self.wfile.write(chunk)
                         offset += chunk_size
+                        
                 except Exception as e:
                     print(f"Decryption/decompression error: {e}")
-                    # Fallback: send as-is if processing fails
+                    # Fallback: send encrypted data as-is
+                    self.send_response(200)
+                    self.send_header('Content-Type', 'application/octet-stream')
+                    self.send_header('Content-Disposition', f'attachment; filename="{filename}"')
+                    self.send_header('Content-Length', str(len(encrypted_data)))
+                    self.end_headers()
                     self.wfile.write(encrypted_data)
             
             print(f"📥 File downloaded: {filename}")
             
         except Exception as e:
             print(f"❌ Download error: {str(e)}")
+            self.send_error(500)
+    
+    def preview_file(self, filename):
+        """Serve file for preview/streaming with proper MIME type detection"""
+        try:
+            filepath = os.path.join(self.upload_dir, filename)
+            if not os.path.exists(filepath) or not os.path.isfile(filepath):
+                self.send_error(404, "File not found")
+                return
+            
+            # Decrypt and extract data with metadata
+            with open(filepath, 'rb') as f:
+                encrypted_data = f.read()
+                try:
+                    # Decrypt first
+                    decrypted_data = fernet.decrypt(encrypted_data)
+                    
+                    # Check if this is new format with metadata
+                    try:
+                        # Extract metadata length (first 4 bytes)
+                        metadata_len = int.from_bytes(decrypted_data[:4], 'big')
+                        # Extract metadata JSON
+                        metadata_json = decrypted_data[4:4+metadata_len]
+                        metadata = json.loads(metadata_json.decode())
+                        # Extract file data
+                        file_data = decrypted_data[4+metadata_len:]
+                        
+                        # Decompress only if it was compressed
+                        if metadata.get('compressed', False):
+                            final_data = gzip.decompress(file_data)
+                        else:
+                            final_data = file_data
+                            
+                    except (json.JSONDecodeError, ValueError, struct.error):
+                        # Fallback to old format
+                        final_data = decompress_file_data(decrypted_data, filename)
+                        
+                except Exception as e:
+                    print(f"Decryption/decompression error for preview: {e}")
+                    self.send_error(500, "Failed to process file")
+                    return
+            
+            # Detect MIME type based on file extension
+            content_type, _ = mimetypes.guess_type(filename)
+            if content_type is None:
+                content_type = 'application/octet-stream'
+            
+            # Set appropriate headers for preview/streaming
+            self.send_response(200)
+            self.send_header('Content-Type', content_type)
+            self.send_header('Content-Length', str(len(final_data)))
+            
+            # Add headers for better media handling
+            if content_type.startswith(('audio/', 'video/')):
+                self.send_header('Accept-Ranges', 'bytes')
+                self.send_header('Cache-Control', 'no-cache')
+            
+            self.end_headers()
+            
+            # Send the file data
+            self.wfile.write(final_data)
+            
+            print(f"👁️ File previewed: {filename}")
+            
+        except Exception as e:
+            print(f"❌ Preview error: {str(e)}")
             self.send_error(500)
     
     def delete_file(self, filename):

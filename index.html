@@ -913,8 +913,8 @@
         function updateUploadCounter() {
             uploadCounter++;
             localStorage.setItem('uploadsToday', uploadCounter.toString());
-            localStorage.setItem('lastUploadDate', today);
-            uploadsToday.textContent = uploadCounter;
+            localStorage.setItem('lastUploadDate', new Date().toDateString());
+            if (uploadsToday) uploadsToday.textContent = uploadCounter;
         }
         
         function loadFileList() {
@@ -1022,28 +1022,9 @@
             toggleTheme();
         }
         
-        // Advanced Analytics Dashboard
+        // Analytics disabled to prevent UI updates
         function loadAnalytics() {
-            fetch('/analytics')
-                .then(response => response.json())
-                .then(data => {
-                    // Update advanced stats if available
-                    if (data.compression_ratio !== undefined) {
-                        const compressionBadge = document.createElement('div');
-                        compressionBadge.className = 'security-badge';
-                        compressionBadge.innerHTML = `🗜️ ${data.compression_ratio}% Space Saved`;
-                        compressionBadge.style.margin = '10px auto';
-                        
-                        const subtitle = document.querySelector('.subtitle');
-                        if (subtitle && !document.querySelector('.compression-info')) {
-                            compressionBadge.classList.add('compression-info');
-                            subtitle.after(compressionBadge);
-                        }
-                    }
-                    
-                    console.log('📊 Analytics loaded:', data);
-                })
-                .catch(err => console.log('Analytics not available:', err));
+            // Analytics disabled for stable UI
         }
         
         // Performance Monitor
@@ -1069,28 +1050,7 @@
         loadAnalytics();
         startPerformanceMonitoring();
         
-        // Real-time updates with faster refresh
-        let refreshInterval = 2000; // Fast refresh every 2 seconds
-        let refreshTimer;
-        
-        function startRealTimeUpdates() {
-            refreshTimer = setInterval(() => {
-                console.log('🔄 Auto-refreshing...');
-                loadFileList();
-                loadAnalytics();
-            }, refreshInterval);
-        }
-        
-        function stopRealTimeUpdates() {
-            if (refreshTimer) {
-                clearInterval(refreshTimer);
-            }
-        }
-        
-        // Start real-time updates
-        startRealTimeUpdates();
-        
-        // Refresh immediately when tab becomes visible
+        // Refresh only when tab becomes visible (no aggressive auto-refresh)
         document.addEventListener('visibilitychange', () => {
             if (!document.hidden) {
                 console.log('🔄 Tab visible - refreshing...');
@@ -1100,7 +1060,7 @@
         });
         
         // Update uploadsToday display
-        uploadsToday.textContent = uploadCounter;
+        if (uploadsToday) uploadsToday.textContent = uploadCounter;
         
         // Register service worker for PWA functionality
         if ('serviceWorker' in navigator) {
